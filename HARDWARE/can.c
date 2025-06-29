@@ -334,6 +334,10 @@ void CAN1_RX0_IRQHandler(void)
 			Move_Z=((float)((short)((temp_rxbuf[4]<<8)+(temp_rxbuf[5]))))/1000;
 		}
 	}
+	else if(id == 0x142)
+	{
+		//
+	}
 }
 #endif
 

@@ -83,7 +83,7 @@ void Drive_Motor(float Vx,float Vy,float Vz)
 			
 			// Front wheel steering Angle limit (front wheel steering Angle controlled by steering engine), unit: rad
 			//前轮转向角度限幅(舵机控制前轮转向角度)，单位：rad
-			AngleR=target_limit_float(AngleR,-0.49f,0.32f);//?28.07°到18.33°
+			AngleR=target_limit_float(AngleR,-0.49f,0.49f);//-28.07°到-28.07°
 			
 			//Inverse kinematics //运动学逆解
 			if(AngleR!=0)
@@ -166,79 +166,111 @@ Output  : none
 返回  值：无
 **************************************************************************/
 float Chassis_Vx=0.0f,Chassis_Vz=0.0f;
-float Chassis_Odom_X,Chassis_Odom_Y,Chassis_Odom_Z;
+float Chassis_Odom_X,Chassis_Odom_Y,Chassis_Odom_Z,Chassis_Odom_Length;
+#define PID_Controler
 void Balance_task(void *pvParameters)
-{ 
-	  u32 lastWakeTime = getSysTickCnt();
+{
+	u32 lastWakeTime = getSysTickCnt();
 
-    while(1)
-    {	
-			// This task runs at a frequency of 100Hz (10ms control once)
-			//此任务以100Hz的频率运行（10ms控制一次）
-			vTaskDelayUntil(&lastWakeTime, F2T(RATE_100_HZ)); 
-			
-			//Time count is no longer needed after 30 seconds
-			//时间计数，30秒后不再需要
-			if(Time_count<3000)Time_count++;
-			
-			//Get the encoder data, that is, the real time wheel speed, 
-			//and convert to transposition international units
-			//获取编码器数据，即车轮实时速度，并转换位国际单位
-			Get_Velocity_Form_Encoder();   
-			//里程计
-			Robot_Odometry(&Chassis_Odom_X,&Chassis_Odom_Y,&Chassis_Odom_Z);
-			//红-vcc 灰-swdio 橙-sclk 黑-gnd  3.3-clk-gnd-dio
-			if(Check==0) //If self-check mode is not enabled //如果没有启动自检模式
+	while (1)
+	{
+		// This task runs at a frequency of 100Hz (10ms control once)
+		// 此任务以100Hz的频率运行（10ms控制一次）
+		vTaskDelayUntil(&lastWakeTime, F2T(RATE_100_HZ));
+
+		// Time count is no longer needed after 30 seconds
+		// 时间计数，30秒后不再需要
+		if (Time_count < 3000)
+			Time_count++;
+
+		// Get the encoder data, that is, the real time wheel speed,
+		// and convert to transposition international units
+		// 获取编码器数据，即车轮实时速度，并转换位国际单位
+		Get_Velocity_Form_Encoder();
+		// 红-vcc 灰-swdio 橙-sclk 黑-gnd  3.3-clk-gnd-dio
+		if (Check == 0) // If self-check mode is not enabled //如果没有启动自检模式
+		{
+			//				command_lost_count++; //串口、CAN控制命令丢失时间计数，丢失1秒后停止控制
+			//				if(command_lost_count>RATE_100_HZ && APP_ON_Flag==0 && Remote_ON_Flag==0 && PS2_ON_Flag==0) //不是APP、PS2、航模遥控模式，就是CAN、串口1、串口3控制模式
+			//					Move_X=0, Move_Y=0, Move_Z=0;
+
+			// if      (APP_ON_Flag)      Get_RC();         //Handle the APP remote commands //处理APP遥控命令
+			// else if (Remote_ON_Flag)   Remote_Control(); //Handle model aircraft remote commands //处理航模遥控命令
+			// else if (PS2_ON_Flag)      PS2_control();    //Handle PS2 controller commands //处理PS2手柄控制命令
+
+			// CAN, Usart 1, Usart 3, Uart5 control can directly get the three axis target speed,
+			// without additional processing
+			// CAN、串口1、串口3(ROS)、串口5控制直接得到三轴目标速度，无须额外处理
+			// else                      Drive_Motor(Move_X, Move_Y, Move_Z);
+			Drive_Motor(Move_X, 0.0f, Move_Z);
+			// Click the user button to update the gyroscope zero
+			// 单击用户按键更新陀螺仪零点
+			Key();
+
+			// If there is no abnormity in the battery voltage, and the enable switch is in the ON position,
+			// and the software failure flag is 0
+			// 如果电池电压不存在异常，而且使能开关在ON档位，而且软件失能标志位为0
+			//if(Turn_Off(Voltage)==0)
+			//   {
+			// Speed closed-loop control to calculate the PWM value of each motor,
+			// PWM represents the actual wheel speed
+			// 速度闭环控制计算各电机PWM值，PWM代表车轮实际转速
+
+			// 开关置位且陀螺仪零飘数据读取
+			if (EN == 1 && Flag_Stop == 0)
 			{
-//				command_lost_count++; //串口、CAN控制命令丢失时间计数，丢失1秒后停止控制
-//				if(command_lost_count>RATE_100_HZ && APP_ON_Flag==0 && Remote_ON_Flag==0 && PS2_ON_Flag==0) //不是APP、PS2、航模遥控模式，就是CAN、串口1、串口3控制模式
-//					Move_X=0, Move_Y=0, Move_Z=0;
+#ifdef PI_Controler
+				MOTOR_A.Motor_Pwm = Incremental_PI_A(MOTOR_A.Encoder, MOTOR_A.Target);
+				MOTOR_B.Motor_Pwm = Incremental_PI_B(MOTOR_B.Encoder, MOTOR_B.Target);
+				MOTOR_C.Motor_Pwm = Incremental_PI_C(MOTOR_C.Encoder, MOTOR_C.Target);
+				MOTOR_D.Motor_Pwm = Incremental_PI_D(MOTOR_D.Encoder, MOTOR_D.Target);
+#elif defined(PID_Controler)
+				MOTOR_A.Motor_Pwm = Incremental_PID_Controler(MOTOR_A.Encoder, MOTOR_A.Target, I_Out_Max, OutPut_Max, 0.01f);
+				MOTOR_B.Motor_Pwm = Incremental_PID_Controler(MOTOR_B.Encoder, MOTOR_B.Target, I_Out_Max, OutPut_Max, 0.01f);
+				// MOTOR_C.Motor_Pwm = Incremental_PID_Controler(MOTOR_C.Encoder, MOTOR_C.Target, 2000, 16700, 0.01f);
+				// MOTOR_D.Motor_Pwm = Incremental_PID_Controler(MOTOR_D.Encoder, MOTOR_D.Target, 2000, 16700, 0.01f);
+#endif
+				// Set different PWM control polarity according to different car models
+				// 根据不同小车型号设置不同的PWM控制极性
+				switch (Car_Mode)
+				{
+				case Mec_Car:
+					Set_Pwm(MOTOR_A.Motor_Pwm, -MOTOR_B.Motor_Pwm, -MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0);
+					break; // Mecanum wheel car       //麦克纳姆轮小车
+				case Omni_Car:
+					Set_Pwm(-MOTOR_A.Motor_Pwm, MOTOR_B.Motor_Pwm, -MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0);
+					break; // Omni car                //全向轮小车
+				case Akm_Car:
+					Set_Pwm(MOTOR_A.Motor_Pwm, MOTOR_B.Motor_Pwm, 16799, -16799, Servo);
+					break; // Ackermann structure car //阿克曼小车
+				case Diff_Car:
+					Set_Pwm(MOTOR_A.Motor_Pwm, MOTOR_B.Motor_Pwm, MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0);
+					break; // Differential car        //两轮差速小车
+				case FourWheel_Car:
+					Set_Pwm(MOTOR_A.Motor_Pwm, -MOTOR_B.Motor_Pwm, -MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0);
+					break; // FourWheel car           //四驱车
+				case Tank_Car:
+					Set_Pwm(MOTOR_A.Motor_Pwm, MOTOR_B.Motor_Pwm, MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0);
+					break; // Tank Car                //履带车
+				}
+			}
+			else
+			{
+				Chassis_Odom_X = 0.0f;
+				Chassis_Odom_Y = 0.0f;
+				Chassis_Odom_Z = 0.0f;
+				Chassis_Odom_Length = 0.0f;
+				Set_Pwm(0, 0, 0, 0, 1500);
+			}
 
-				// if      (APP_ON_Flag)      Get_RC();         //Handle the APP remote commands //处理APP遥控命令
-				// else if (Remote_ON_Flag)   Remote_Control(); //Handle model aircraft remote commands //处理航模遥控命令
-				// else if (PS2_ON_Flag)      PS2_control();    //Handle PS2 controller commands //处理PS2手柄控制命令
-				
-				//CAN, Usart 1, Usart 3, Uart5 control can directly get the three axis target speed, 
-				//without additional processing
-				//CAN、串口1、串口3(ROS)、串口5控制直接得到三轴目标速度，无须额外处理
-				//else                      Drive_Motor(Move_X, Move_Y, Move_Z);
-				Drive_Motor(Chassis_Vx, 0.0f, Chassis_Vz);
-				//Click the user button to update the gyroscope zero
-				//单击用户按键更新陀螺仪零点
-				Key(); 
-				
-				//If there is no abnormity in the battery voltage, and the enable switch is in the ON position,
-        //and the software failure flag is 0
-				//如果电池电压不存在异常，而且使能开关在ON档位，而且软件失能标志位为0
-				//if(Turn_Off(Voltage)==0) 
-				//  { 			
-           //Speed closed-loop control to calculate the PWM value of each motor, 
-					 //PWM represents the actual wheel speed					 
-					 //速度闭环控制计算各电机PWM值，PWM代表车轮实际转速
-					 MOTOR_A.Motor_Pwm=Incremental_PI_A(MOTOR_A.Encoder, MOTOR_A.Target);
-					 MOTOR_B.Motor_Pwm=Incremental_PI_B(MOTOR_B.Encoder, MOTOR_B.Target);
-					 MOTOR_C.Motor_Pwm=Incremental_PI_C(MOTOR_C.Encoder, MOTOR_C.Target);
-					 MOTOR_D.Motor_Pwm=Incremental_PI_D(MOTOR_D.Encoder, MOTOR_D.Target);
-						 
-					 Limit_Pwm(16700);
-					 
-					 //Set different PWM control polarity according to different car models
-					 //根据不同小车型号设置不同的PWM控制极性
-					 switch(Car_Mode)
-					 {
-							case Mec_Car:       Set_Pwm( MOTOR_A.Motor_Pwm, -MOTOR_B.Motor_Pwm, -MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0    ); break; //Mecanum wheel car       //麦克纳姆轮小车
-							case Omni_Car:      Set_Pwm(-MOTOR_A.Motor_Pwm,  MOTOR_B.Motor_Pwm, -MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0    ); break; //Omni car                //全向轮小车
-							case Akm_Car:       Set_Pwm( MOTOR_A.Motor_Pwm,  MOTOR_B.Motor_Pwm,  16799,-16799 ,                   Servo); break; //Ackermann structure car //阿克曼小车
-							case Diff_Car:      Set_Pwm( MOTOR_A.Motor_Pwm,  MOTOR_B.Motor_Pwm,  MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0    ); break; //Differential car        //两轮差速小车
-							case FourWheel_Car: Set_Pwm( MOTOR_A.Motor_Pwm, -MOTOR_B.Motor_Pwm, -MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0    ); break; //FourWheel car           //四驱车 
-							case Tank_Car:      Set_Pwm( MOTOR_A.Motor_Pwm,  MOTOR_B.Motor_Pwm,  MOTOR_C.Motor_Pwm, MOTOR_D.Motor_Pwm, 0    ); break; //Tank Car                //履带车
-					 }
-				//  }
-				 //If Turn_Off(Voltage) returns to 1, the car is not allowed to move, and the PWM value is set to 0
-				 //如果Turn_Off(Voltage)返回值为1，不允许控制小车进行运动，PWM值设置为0
-				 //else	Set_Pwm(0,0,16799,-16799,0); 
-			 }	
-		 }  
+			// 里程计
+			Robot_Odometry(&Chassis_Odom_X, &Chassis_Odom_Y, &Chassis_Odom_Z, &Chassis_Odom_Length);
+			//  }
+			// If Turn_Off(Voltage) returns to 1, the car is not allowed to move, and the PWM value is set to 0
+			// 如果Turn_Off(Voltage)返回值为1，不允许控制小车进行运动，PWM值设置为0
+			// else	Set_Pwm(0,0,16799,-16799,0);
+		}
+	}
 }
 /**************************************************************************
 Function: Assign a value to the PWM register to control wheel speed and direction
@@ -288,7 +320,7 @@ void Limit_Pwm(int amplitude)
 {	
 	    MOTOR_A.Motor_Pwm=target_limit_float(MOTOR_A.Motor_Pwm,-amplitude,amplitude);
 	    MOTOR_B.Motor_Pwm=target_limit_float(MOTOR_B.Motor_Pwm,-amplitude,amplitude);
-		  MOTOR_C.Motor_Pwm=target_limit_float(MOTOR_C.Motor_Pwm,-amplitude,amplitude);
+		MOTOR_C.Motor_Pwm=target_limit_float(MOTOR_C.Motor_Pwm,-amplitude,amplitude);
 	    MOTOR_D.Motor_Pwm=target_limit_float(MOTOR_D.Motor_Pwm,-amplitude,amplitude);
 }	    
 /**************************************************************************
@@ -325,20 +357,24 @@ Output  : Whether control is allowed, 1: not allowed, 0 allowed
 入口参数：电压
 返回  值：是否允许控制，1：不允许，0允许
 **************************************************************************/
-u8 Turn_Off( int voltage)
+u8 Turn_Off(int voltage)
 {
-	    u8 temp;
-			if(voltage<10||EN==0||Flag_Stop==1)
-			{	                                                
-				temp=1;      
-				PWMA1=0;PWMA2=0;
-				PWMB1=0;PWMB2=0;		
-				PWMC1=0;PWMC1=0;	
-				PWMD1=0;PWMD2=0;					
-      }
-			else
-			temp=0;
-			return temp;			
+	u8 temp;
+	if (EN == 0 || Flag_Stop == 1)
+	{
+		temp = 1;
+		PWMA1 = 0;
+		PWMA2 = 0;
+		PWMB1 = 0;
+		PWMB2 = 0;
+		PWMC1 = 0;
+		PWMC1 = 0;
+		PWMD1 = 0;
+		PWMD2 = 0;
+	}
+	else
+		temp = 0;
+	return temp;
 }
 /**************************************************************************
 Function: Calculate absolute value
@@ -417,6 +453,39 @@ int Incremental_PI_D (float Encoder,float Target)
 	 if(Pwm<-16700)Pwm=-16700;
 	 Last_bias=Bias; //Save the last deviation //保存上一次偏差 
 	 return Pwm; 
+}
+/**
+ * @brief 限幅函数
+ *
+ * @tparam Type
+ * @param x 传入数据
+ * @param Min 最小值
+ * @param Max 最大值
+ */
+void Math_Constrain(float *x, float Min, float Max)
+{
+	if (*x < Min)
+	{
+		*x = Min;
+	}
+	else if (*x > Max)
+	{
+		*x = Max;
+	}
+}
+float p_out, i_out, d_out, output, error, pre_error;
+int Incremental_PID_Controler(float Encoder, float Target, float i_out_max, float output_max, float D_T)
+{
+	error = Target - Encoder;
+	p_out = Velocity_KP * error;
+	i_out += Velocity_KI * error * D_T;
+	d_out = Velocity_KD * (error - pre_error) / D_T;
+	Math_Constrain(&i_out, -i_out_max, i_out_max); // 限制积分值
+	output = p_out + i_out + d_out;
+	Math_Constrain(&output, -output_max, output_max);
+	pre_error = error;
+
+	return output;
 }
 /**************************************************************************
 Function: Processes the command sent by APP through usart 2
@@ -753,7 +822,7 @@ void robot_mode_check(void)
 }
 //akm里程计计算
 //声明变量 
-void Robot_Odometry(float *__Robot_Pos_X,float *__Robot_Pos_Y,float *__Robot_Pos_Z)
+void Robot_Odometry(float *__Robot_Pos_X,float *__Robot_Pos_Y,float *__Robot_Pos_Z,float *__Robot_Pos)
 {
 	//采样时间 100hz
 	const float Sampling_Time = 0.01f;
@@ -764,4 +833,5 @@ void Robot_Odometry(float *__Robot_Pos_X,float *__Robot_Pos_Y,float *__Robot_Pos
 	*__Robot_Pos_X += (Chassis_Vx * cos(*__Robot_Pos_Z) ) * Sampling_Time;
 	*__Robot_Pos_Y += (Chassis_Vx * sin(*__Robot_Pos_Z) ) * Sampling_Time;
 	*__Robot_Pos_Z += Chassis_Vz * Sampling_Time;
+	*__Robot_Pos += Chassis_Vx*Sampling_Time;
 }

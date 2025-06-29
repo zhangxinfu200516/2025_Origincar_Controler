@@ -15,6 +15,7 @@
 extern short test_num;
 extern int robot_mode_check_flag;
 extern u8 command_lost_count; //串口、CAN控制命令丢失时间计数，丢失1秒后停止控制
+extern float Chassis_Odom_Length;
 void Balance_task(void *pvParameters);
 void Set_Pwm(int motor_a,int motor_b,int motor_c,int motor_d,int servo);
 void Limit_Pwm(int amplitude);
@@ -26,6 +27,9 @@ int Incremental_PI_A (float Encoder,float Target);
 int Incremental_PI_B (float Encoder,float Target);
 int Incremental_PI_C (float Encoder,float Target);
 int Incremental_PI_D (float Encoder,float Target);
+void Math_Constrain(float *x, float Min, float Max);
+int Incremental_PID_Controler(float Encoder, float Target, float i_out_max, float output_max, float D_T);
+
 void Get_RC(void);
 void Remote_Control(void);
 void Drive_Motor(float Vx,float Vy,float Vz);
@@ -35,6 +39,6 @@ void Smooth_control(float vx,float vy,float vz);
 void PS2_control(void);
 float float_abs(float insert);
 void robot_mode_check(void);
-void Robot_Odometry(float *__Robot_Pos_X,float *__Robot_Pos_Y,float *__Robot_Pos_Z);
+void Robot_Odometry(float *__Robot_Pos_X,float *__Robot_Pos_Y,float *__Robot_Pos_Z,float *__Robot_Pos);
 #endif  
 

@@ -1,4 +1,5 @@
 #include "usartx.h"
+#include "balance.h"
 //user未使用以下变量
 SEND_DATA Send_Data;
 RECEIVE_DATA Receive_Data;
@@ -26,6 +27,7 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
+float Tmp_Vx,Tmp_Vz;
 void data_task(void *pvParameters)
 {
 	u32 lastWakeTime = getSysTickCnt();
@@ -42,7 +44,10 @@ void data_task(void *pvParameters)
 		USART1_SEND(); // Serial port 1 sends data //串口1发送数据
 		USART3_SEND(); // Serial port 3 (ROS) sends data  //串口3(ROS)发送数据
 		USART5_SEND(); // Serial port 5 sends data //串口5发送数据
-		CAN_SEND();	   // CAN send data //CAN发送数据
+		//CAN_SEND();	   // CAN send data //CAN发送数据
+
+		// Move_X = Tmp_Vx;
+		// Move_Z = Vz_to_Akm_Angle(Tmp_Vx, Tmp_Vz);
 	}
 }
 
@@ -204,7 +209,7 @@ void data_transition()
 		//If the robot is static (motor control dislocation), the z-axis is 0
 		uart3_tx_data.Mpu6050_Gyroscope_Z_Data=0;         //If the robot is static (motor control dislocation), the z-axis is 0	  
 	
-	uart3_tx_data.Encoder_Data = 0;
+	uart3_tx_data.Encoder_Data = Chassis_Odom_Length * 1000;
 	
 	uart3_tx_data.crc = Check_Sum(sizeof(uart3_tx_data)-2,1);
 	uart3_tx_data.Frame_Tail = FRAME_TAIL;     //Frame_tail //帧尾
@@ -270,25 +275,29 @@ Output  : none
 **************************************************************************/
 void CAN_SEND(void) 
 {
-	u8 CAN_SENT[8],i;
+	// u8 CAN_SENT[8],i;
 	
-	for(i=0;i<8;i++)
-	{
-	  CAN_SENT[i]=Send_Data.buffer[i];
-	}
-	CAN1_Send_Num(0x101,CAN_SENT);
+	// for(i=0;i<8;i++)
+	// {
+	//   CAN_SENT[i]=Send_Data.buffer[i];
+	// }
+	// CAN1_Send_Num(0x101,CAN_SENT);
 	
-	for(i=0;i<8;i++)
-	{
-	  CAN_SENT[i]=Send_Data.buffer[i+8];
-	}
-	CAN1_Send_Num(0x102,CAN_SENT);
+	// for(i=0;i<8;i++)
+	// {
+	//   CAN_SENT[i]=Send_Data.buffer[i+8];
+	// }
+	// CAN1_Send_Num(0x102,CAN_SENT);
 	
-	for(i=0;i<8;i++)
-	{
-	  CAN_SENT[i]=Send_Data.buffer[i+16];
-	}
-	CAN1_Send_Num(0x103,CAN_SENT);
+	// for(i=0;i<8;i++)
+	// {
+	//   CAN_SENT[i]=Send_Data.buffer[i+16];
+	// }
+	// CAN1_Send_Num(0x103,CAN_SENT);
+
+	u8 lk[8] = {0};
+	lk[0] = 0x9C;
+	CAN1_Send_Num(0x142,lk);
 }
 /**************************************************************************
 Function: Serial port 1 initialization
@@ -904,7 +913,8 @@ int UART5_IRQHandler(void)
 						else
 						{
 							Move_Z=XYZ_Target_Speed_transition(Receive_Data.buffer[7],Receive_Data.buffer[8]);
-						}				  }
+						}				  
+						}
 					
 			}
 		}

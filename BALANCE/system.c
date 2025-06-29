@@ -13,22 +13,22 @@ int Divisor_Mode;
 //0=Mec_Car，1=Omni_Car，2=Akm_Car，3=Diff_Car，4=FourWheel_Car，5=Tank_Car
 u8 Car_Mode=2; 
 
-//Servo control PWM value, Ackerman car special
-//舵机控制PWM值，阿克曼小车专用
+//Servo control PWM value, AckermanS car special
+//舵机控制PWM值，阿克曼小车专用SSS
 int Servo;  
 
 //Default speed of remote control car, unit: mm/s
 //遥控小车的默认速度，单位：mm/s
 float RC_Velocity=500; 
 
-//Vehicle three-axis target moving speed, unit: m/s
+//Vehicle three-axis target moving speed, unit: m/sS
 //小车三轴目标运动速度，单位：m/s
 float Move_X, Move_Y, Move_Z;   
 
 //PID parameters of Speed control
 //速度控制PID参数
-float Velocity_KP=4800,Velocity_KI=300; 
-
+float Velocity_KP = 80000, Velocity_KI = 500, Velocity_KD = 100;
+float I_Out_Max = 500, OutPut_Max = 16700;
 //Smooth control of intermediate variables, dedicated to omni-directional moving cars
 //平滑控制中间变量，全向移动小车专用
 Smooth_Control smooth_control;  

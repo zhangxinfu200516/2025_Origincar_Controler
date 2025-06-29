@@ -470,7 +470,7 @@ void MPU_Get_Gyroscope(void)
 		gyro[2]=(I2C_ReadOneByte(devAddr,MPU6050_RA_GYRO_ZOUT_H)<<8)+I2C_ReadOneByte(devAddr,MPU6050_RA_GYRO_ZOUT_L);    //读取Z轴陀螺仪
 	
 	if(Deviation_Count<CONTROL_DELAY) // 10 seconds before starting //开机前10秒
-		{
+		{//已修改为1s
 
 			Led_Count=1; //LED high frequency flashing //LED高频闪烁
 			Flag_Stop=1; //The software fails to flag location 1 //软件失能标志位置1		

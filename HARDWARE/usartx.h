@@ -56,7 +56,7 @@ struct Struct_UART_Tx_Data
 	short Mpu6050_Gyroscope_Y_Data;
 	short Mpu6050_Gyroscope_Z_Data;
 	short Power_Voltage;//要求接收端使用时要：除以1000将数据类型由short转化为float，转化后单位为 V
-	short Encoder_Data;//要求接收端使用时要：除以1000将数据类型由short转化为float，转化后单位为 V
+	short Encoder_Data;//要求接收端使用时要：除以1000将数据类型由short转化为float，转化后单位为 
 	u8 crc;
 	u8 Frame_Tail;
 }__attribute__((packed));
