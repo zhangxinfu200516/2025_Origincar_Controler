@@ -110,8 +110,8 @@ void usart2_send(u8 data);
 void usart3_send(u8 data);
 void usart5_send(u8 data);
 
-u8 Check_Sum(unsigned char Count_Number,unsigned char Mode);
-
-
+u8 Check_Sum(unsigned char Count_Number,unsigned char Mode); 
+extern u8 Uart_alive_status;
+extern void Uart_aliving_checkout_func();
 #endif
 

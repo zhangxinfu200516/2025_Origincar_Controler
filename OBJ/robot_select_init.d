@@ -81,6 +81,10 @@
 ..\obj\robot_select_init.o: ..\SYSTEM\delay\delay.h
 ..\obj\robot_select_init.o: ..\BALANCE\balance.h
 ..\obj\robot_select_init.o: ..\BALANCE\system.h
+..\obj\robot_select_init.o: ..\HARDWARE\MPU6050\mpu6050.h
+..\obj\robot_select_init.o: ..\BALANCE\kalman_filter.h
+..\obj\robot_select_init.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+..\obj\robot_select_init.o: ..\BALANCE\QuaternionEKF.h
 ..\obj\robot_select_init.o: ..\HARDWARE\led.h
 ..\obj\robot_select_init.o: ..\HARDWARE\oled.h
 ..\obj\robot_select_init.o: ..\HARDWARE\usartx.h
@@ -95,6 +99,4 @@
 ..\obj\robot_select_init.o: ..\BALANCE\robot_select_init.h
 ..\obj\robot_select_init.o: ..\HARDWARE\MPU6050\I2C.h
 ..\obj\robot_select_init.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-..\obj\robot_select_init.o: ..\HARDWARE\MPU6050\MPU6050.h
-..\obj\robot_select_init.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 ..\obj\robot_select_init.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h

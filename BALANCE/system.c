@@ -190,7 +190,7 @@ void systemInit(void)
 	//three-axis angular velocity and three-axis acceleration information
   //MPU6050 初始化，用于读取小车三轴姿态、三轴角速度、三轴加速度信息
    MPU6050_initialize();        		
-	
+	DMP_Init();
 	//Initialize the hardware interface to the PS2 controller
 	//初始化与PS2手柄连接的硬件接口
 	PS2_Init();

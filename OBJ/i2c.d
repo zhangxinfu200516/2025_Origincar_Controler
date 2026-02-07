@@ -81,6 +81,10 @@
 ..\obj\i2c.o: ..\SYSTEM\delay\delay.h
 ..\obj\i2c.o: ..\BALANCE\balance.h
 ..\obj\i2c.o: ..\BALANCE\system.h
+..\obj\i2c.o: ..\HARDWARE\MPU6050\mpu6050.h
+..\obj\i2c.o: ..\BALANCE\kalman_filter.h
+..\obj\i2c.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+..\obj\i2c.o: ..\BALANCE\QuaternionEKF.h
 ..\obj\i2c.o: ..\HARDWARE\led.h
 ..\obj\i2c.o: ..\HARDWARE\oled.h
 ..\obj\i2c.o: ..\HARDWARE\usartx.h
@@ -94,7 +98,5 @@
 ..\obj\i2c.o: ..\HARDWARE\key.h
 ..\obj\i2c.o: ..\BALANCE\robot_select_init.h
 ..\obj\i2c.o: ..\HARDWARE\MPU6050\I2C.h
-..\obj\i2c.o: ..\HARDWARE\MPU6050\MPU6050.h
-..\obj\i2c.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 ..\obj\i2c.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h
 ..\obj\i2c.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h

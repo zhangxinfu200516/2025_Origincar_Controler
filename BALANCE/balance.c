@@ -167,6 +167,7 @@ Output  : none
 **************************************************************************/
 float Chassis_Vx=0.0f,Chassis_Vz=0.0f;
 float Chassis_Odom_X,Chassis_Odom_Y,Chassis_Odom_Z,Chassis_Odom_Length;
+float Cailbrate_Yaw_CurrentAngle = 0;
 #define PID_Controler
 void Balance_task(void *pvParameters)
 {
@@ -182,42 +183,25 @@ void Balance_task(void *pvParameters)
 		// 时间计数，30秒后不再需要
 		if (Time_count < 3000)
 			Time_count++;
-
-		// Get the encoder data, that is, the real time wheel speed,
-		// and convert to transposition international units
+			
 		// 获取编码器数据，即车轮实时速度，并转换位国际单位
 		Get_Velocity_Form_Encoder();
+
 		// 红-vcc 灰-swdio 橙-sclk 黑-gnd  3.3-clk-gnd-dio
 		if (Check == 0) // If self-check mode is not enabled //如果没有启动自检模式
 		{
-			//				command_lost_count++; //串口、CAN控制命令丢失时间计数，丢失1秒后停止控制
-			//				if(command_lost_count>RATE_100_HZ && APP_ON_Flag==0 && Remote_ON_Flag==0 && PS2_ON_Flag==0) //不是APP、PS2、航模遥控模式，就是CAN、串口1、串口3控制模式
-			//					Move_X=0, Move_Y=0, Move_Z=0;
+			if(Uart_alive_status == 1)
+			{
+				Drive_Motor(Move_X, 0.0f, Move_Z);
+			}
+			else
+			{
+				Drive_Motor(0.0f, 0.0f, 0.0f);
+			}
 
-			// if      (APP_ON_Flag)      Get_RC();         //Handle the APP remote commands //处理APP遥控命令
-			// else if (Remote_ON_Flag)   Remote_Control(); //Handle model aircraft remote commands //处理航模遥控命令
-			// else if (PS2_ON_Flag)      PS2_control();    //Handle PS2 controller commands //处理PS2手柄控制命令
-
-			// CAN, Usart 1, Usart 3, Uart5 control can directly get the three axis target speed,
-			// without additional processing
-			// CAN、串口1、串口3(ROS)、串口5控制直接得到三轴目标速度，无须额外处理
-			// else                      Drive_Motor(Move_X, Move_Y, Move_Z);
-			Drive_Motor(Move_X, 0.0f, Move_Z);
-			// Click the user button to update the gyroscope zero
-			// 单击用户按键更新陀螺仪零点
 			Key();
 
-			// If there is no abnormity in the battery voltage, and the enable switch is in the ON position,
-			// and the software failure flag is 0
-			// 如果电池电压不存在异常，而且使能开关在ON档位，而且软件失能标志位为0
-			//if(Turn_Off(Voltage)==0)
-			//   {
-			// Speed closed-loop control to calculate the PWM value of each motor,
-			// PWM represents the actual wheel speed
-			// 速度闭环控制计算各电机PWM值，PWM代表车轮实际转速
-
-			// 开关置位且陀螺仪零飘数据读取
-			if (EN == 1 && Flag_Stop == 0)
+			if (EN == 1)
 			{
 #ifdef PI_Controler
 				MOTOR_A.Motor_Pwm = Incremental_PI_A(MOTOR_A.Encoder, MOTOR_A.Target);
@@ -227,8 +211,6 @@ void Balance_task(void *pvParameters)
 #elif defined(PID_Controler)
 				MOTOR_A.Motor_Pwm = Incremental_PID_Controler(MOTOR_A.Encoder, MOTOR_A.Target, I_Out_Max, OutPut_Max, 0.01f);
 				MOTOR_B.Motor_Pwm = Incremental_PID_Controler(MOTOR_B.Encoder, MOTOR_B.Target, I_Out_Max, OutPut_Max, 0.01f);
-				// MOTOR_C.Motor_Pwm = Incremental_PID_Controler(MOTOR_C.Encoder, MOTOR_C.Target, 2000, 16700, 0.01f);
-				// MOTOR_D.Motor_Pwm = Incremental_PID_Controler(MOTOR_D.Encoder, MOTOR_D.Target, 2000, 16700, 0.01f);
 #endif
 				// Set different PWM control polarity according to different car models
 				// 根据不同小车型号设置不同的PWM控制极性
@@ -261,14 +243,17 @@ void Balance_task(void *pvParameters)
 				Chassis_Odom_Z = 0.0f;
 				Chassis_Odom_Length = 0.0f;
 				Set_Pwm(0, 0, 0, 0, 1500);
-			}
 
+				if(calibrate_flag == 1)
+				{
+					if(Yaw != 0)
+					{
+						Cailbrate_Yaw_CurrentAngle = Yaw;
+					}
+				}
+			}
 			// 里程计
 			Robot_Odometry(&Chassis_Odom_X, &Chassis_Odom_Y, &Chassis_Odom_Z, &Chassis_Odom_Length);
-			//  }
-			// If Turn_Off(Voltage) returns to 1, the car is not allowed to move, and the PWM value is set to 0
-			// 如果Turn_Off(Voltage)返回值为1，不允许控制小车进行运动，PWM值设置为0
-			// else	Set_Pwm(0,0,16799,-16799,0);
 		}
 	}
 }

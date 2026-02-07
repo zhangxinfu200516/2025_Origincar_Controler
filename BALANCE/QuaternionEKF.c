@@ -106,6 +106,7 @@ void IMU_QuaternionEKF_Update(float gx, float gy, float gz, float ax, float ay, 
     if (!QEKF_INS->Initialized)
     {
         IMU_QuaternionEKF_Init(10, 0.001, 1000000 * 10, 0.9996 * 0 + 1, 0 , QEKF_INS);
+        //IMU_QuaternionEKF_Init(0.01, 0.001, 0.1, 2.0f, 0 , QEKF_INS);
     }
 
     /*   F, number with * represent vals to be set

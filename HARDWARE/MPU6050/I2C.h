@@ -31,21 +31,28 @@ enum
 	I2C_NACK
 };
 
-void I2C_SDAMode(uint8_t Mode);
-void I2C_Start(void);
-void I2C_Stop(void);
-bool I2C_WaiteForAck(void);
-void I2C_Ack(void);
-void I2C_NAck(void);
-bool I2C_WriteOneBit(uint8_t DevAddr, uint8_t RegAddr, uint8_t BitNum, uint8_t Data);
-bool I2C_WriteBits(uint8_t DevAddr, uint8_t RegAddr, uint8_t BitStart, uint8_t Length, uint8_t Data);
-void I2C_WriteByte(uint8_t Data);
-uint8_t I2C_ReadByte(uint8_t Ack);
-u8 I2C_WriteOneByte(uint8_t DevAddr, uint8_t RegAddr, uint8_t Data);
-uint8_t I2C_ReadOneByte(uint8_t DevAddr, uint8_t RegAddr);
-bool I2C_WriteBuff(uint8_t DevAddr, uint8_t RegAddr, uint8_t Num, uint8_t *pBuff);
-bool I2C_ReadBuff(uint8_t DevAddr, uint8_t RegAddr, uint8_t Num, uint8_t *pBuff);
+int IIC_Start(void);					 //发送IIC开始信号
+void IIC_Stop(void);	  			 //发送IIC停止信号
+void IIC_Send_Byte(u8 txd);		 //IIC发送一个字节
+u8 IIC_Read_Byte(unsigned char ack);//IIC读取一个字节
+int IIC_Wait_Ack(void); 			 //IIC等待ACK信号
+void IIC_Ack(void);						 //IIC发送ACK信号
+void IIC_NAck(void);					 //IIC不发送ACK信号
 
+void IIC_Write_One_Byte(u8 daddr,u8 addr,u8 data);
+u8 IIC_Read_One_Byte(u8 daddr,u8 addr);	 
+unsigned char I2C_Readkey(unsigned char I2C_Addr);
+
+unsigned char I2C_ReadOneByte(unsigned char I2C_Addr,unsigned char addr);
+unsigned char IICwriteByte(unsigned char dev, unsigned char reg, unsigned char data);
+u8 IICwriteBytes(u8 dev, u8 reg, u8 length, u8* data);
+u8 IICwriteBits(u8 dev,u8 reg,u8 bitStart,u8 length,u8 data);
+u8 IICwriteBit(u8 dev,u8 reg,u8 bitNum,u8 data);
+u8 IICreadBytes(u8 dev, u8 reg, u8 length, u8 *data);
+
+int i2cWrite(uint8_t addr, uint8_t reg, uint8_t len, uint8_t *data);
+int i2cRead(uint8_t addr, uint8_t reg, uint8_t len, uint8_t *buf);
+u8 I2C_WriteOneByte(uint8_t DevAddr, uint8_t RegAddr, uint8_t Data);
 void I2C_GPIOInit(void);
 
 #endif

@@ -1,5 +1,6 @@
 #include "usartx.h"
 #include "balance.h"
+#include "delay.h"
 //user未使用以下变量
 SEND_DATA Send_Data;
 RECEIVE_DATA Receive_Data;
@@ -14,9 +15,9 @@ struct Struct_UART_Rx_Data uart3_rx_data;
 static u8 uart3_tx_buffer[USART3_TX_BUF_SIZE];
 static u8 uart3_rx_buffer[USART3_RX_BUF_SIZE];
 
-
-
-
+ u32 Uart_alive_Flag = 0;
+ u32 Pre_Uart_alive_Flag = 0;
+u8 Uart_alive_status = 0;
 
 
 /**************************************************************************
@@ -28,12 +29,15 @@ Output  : none
 返回  值：无
 **************************************************************************/
 float Tmp_Vx,Tmp_Vz;
+u32 last_tim_count;
+float dt;
 void data_task(void *pvParameters)
 {
 	u32 lastWakeTime = getSysTickCnt();
 
 	while (1)
 	{
+		dt = Systick_GetDeltaT(&last_tim_count);
 		// The task is run at 20hz
 		// 此任务以20Hz的频率运行
 		vTaskDelayUntil(&lastWakeTime, F2T(RATE_20_HZ));
@@ -41,16 +45,29 @@ void data_task(void *pvParameters)
 		// Assign the data to be sent
 		// 对要进行发送的数据进行赋值
 		data_transition();
-		USART1_SEND(); // Serial port 1 sends data //串口1发送数据
 		USART3_SEND(); // Serial port 3 (ROS) sends data  //串口3(ROS)发送数据
-		USART5_SEND(); // Serial port 5 sends data //串口5发送数据
-		//CAN_SEND();	   // CAN send data //CAN发送数据
-
-		// Move_X = Tmp_Vx;
-		// Move_Z = Vz_to_Akm_Angle(Tmp_Vx, Tmp_Vz);
+		
+		static u8 tim_cnt10 = 0;//每0.5s检测一次
+		tim_cnt10++;
+		if(tim_cnt10 > 10)
+		{
+			Uart_aliving_checkout_func();
+			tim_cnt10 = 0;
+		}
 	}
 }
-
+void Uart_aliving_checkout_func()
+{
+	if(Uart_alive_Flag == Pre_Uart_alive_Flag)
+	{
+		Uart_alive_status = 0;
+	}
+	else
+	{
+		Uart_alive_status = 1;
+	}
+	Pre_Uart_alive_Flag = Uart_alive_Flag;
+}
 #ifdef Forhead
 /**************************************************************************
 Function: The data sent by the serial port is assigned
@@ -844,6 +861,8 @@ int USART3_IRQHandler(void)
 					{
 						Move_Z = Vz;
 					}
+
+					Uart_alive_Flag ++ ;
 				}
 			}
 		}

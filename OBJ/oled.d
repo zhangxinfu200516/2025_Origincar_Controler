@@ -81,6 +81,10 @@
 ..\obj\oled.o: ..\SYSTEM\delay\delay.h
 ..\obj\oled.o: ..\BALANCE\balance.h
 ..\obj\oled.o: ..\BALANCE\system.h
+..\obj\oled.o: ..\HARDWARE\MPU6050\mpu6050.h
+..\obj\oled.o: ..\BALANCE\kalman_filter.h
+..\obj\oled.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+..\obj\oled.o: ..\BALANCE\QuaternionEKF.h
 ..\obj\oled.o: ..\HARDWARE\led.h
 ..\obj\oled.o: ..\HARDWARE\oled.h
 ..\obj\oled.o: ..\HARDWARE\usartx.h
@@ -95,7 +99,5 @@
 ..\obj\oled.o: ..\BALANCE\robot_select_init.h
 ..\obj\oled.o: ..\HARDWARE\MPU6050\I2C.h
 ..\obj\oled.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-..\obj\oled.o: ..\HARDWARE\MPU6050\MPU6050.h
-..\obj\oled.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 ..\obj\oled.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h
 ..\obj\oled.o: ..\HARDWARE\oledfont.h

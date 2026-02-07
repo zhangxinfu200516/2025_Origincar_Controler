@@ -1,4 +1,5 @@
 #include "show.h"
+#include "usartx.h"
 int Voltage_Show;
 unsigned char i;
 unsigned char Send_Count;
@@ -58,6 +59,30 @@ void show_task(void *pvParameters)
 			LowVoltage_1++; // 10.5V, first buzzer when low battery //10.5V，低电量时蜂鸣器第一次报警
 		else if (Voltage < 10 && LowVoltage_1 < 2)
 			LowVoltage_2++; // 10V, when the car is not allowed to control, the buzzer will alarm the second time //10V，小车禁止控制时蜂鸣器第二次报警
+
+
+//		if(!calibrate_flag)
+//		{
+//			static uint8_t tim_cnt_buzzer = 0;
+//			tim_cnt_buzzer++;
+//			if(tim_cnt_buzzer < 5)
+//			{
+//				Buzzer = 1;
+//			}
+//			else if(tim_cnt_buzzer >=5 && tim_cnt_buzzer < 10)
+//			{
+//				Buzzer = 0;
+//			}
+
+//			if(tim_cnt_buzzer >= 10)
+//			{
+//				tim_cnt_buzzer = 0;
+//			}
+//		}
+//		else
+//		{
+//			Buzzer = 0;
+//		}
 
 		APP_Show();	 // Send data to the APP //向APP发送数据
 		oled_show(); // Tasks are displayed on the screen //显示屏显示任务
@@ -348,7 +373,7 @@ void oled_show(void)
 
 		// Displays whether controls are allowed in the current car
 		// 显示当前小车是否允许控制
-		if (EN == 1 && Flag_Stop == 0)
+		if (Uart_alive_status == 1)
 			OLED_ShowString(45, 50, "O N");
 		else
 			OLED_ShowString(45, 50, "OFF");

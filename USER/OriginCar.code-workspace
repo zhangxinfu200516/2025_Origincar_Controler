@@ -6,7 +6,15 @@
     ],
     "settings": {
         "files.associations": {
-            "system.h": "c"
+            "system.h": "c",
+            "i2c.h": "c",
+            "inv_mpu_dmp_motion_driver.h": "c",
+            "mpu6050.h": "c",
+            "sys.h": "c",
+            "kalman_filter.h": "c",
+            "show.h": "c",
+            "balance.h": "c",
+            "usartx.h": "c"
         }
     },
     "extensions": {}

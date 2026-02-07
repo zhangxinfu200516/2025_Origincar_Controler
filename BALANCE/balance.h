@@ -2,7 +2,7 @@
 #define __BALANCE_H			  	 
 #include "sys.h"
 #include "system.h"
-
+#include "mpu6050.h"
 #define BALANCE_TASK_PRIO		4     //Task priority //任务优先级
 #define BALANCE_STK_SIZE 		512   //Task stack size //任务堆栈大小
 
@@ -16,6 +16,7 @@ extern short test_num;
 extern int robot_mode_check_flag;
 extern u8 command_lost_count; //串口、CAN控制命令丢失时间计数，丢失1秒后停止控制
 extern float Chassis_Odom_Length;
+extern float Cailbrate_Yaw_CurrentAngle;
 void Balance_task(void *pvParameters);
 void Set_Pwm(int motor_a,int motor_b,int motor_c,int motor_d,int servo);
 void Limit_Pwm(int amplitude);

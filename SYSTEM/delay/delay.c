@@ -12,6 +12,8 @@ static u8  fac_us=0;							//us延时倍乘数
 static u16 fac_ms=0;							//ms延时倍乘数,在os下,代表每个节拍的ms数
 
 static u32 sysTickCnt=0;
+static u32 systick_reload_value  = 0;
+
 extern void xPortSysTickHandler(void);
  
 //systick中断服务函数,使用OS时用到
@@ -34,7 +36,6 @@ u32 getSysTickCnt(void)
 	else
 		return sysTickCnt;
 }		   
-
 //初始化延迟函数
 //SYSTICK的时钟固定为AHB时钟，基础例程里面SYSTICK时钟频率为AHB/8
 //这里为了兼容FreeRTOS，所以将SYSTICK的时钟频率改为AHB的频率！
@@ -51,6 +52,8 @@ void delay_init(u8 SYSCLK)
 	SysTick->CTRL|=SysTick_CTRL_TICKINT_Msk;//开启SYSTICK中断
 	SysTick->LOAD=reload; 					//每1/configTICK_RATE_HZ断一次	
 	SysTick->CTRL|=SysTick_CTRL_ENABLE_Msk; //开启SYSTICK     
+
+	systick_reload_value = reload;
 }								    
 
 //延时nus
@@ -98,8 +101,32 @@ void delay_xms(u32 nms)
 	u32 i;
 	for(i=0;i<nms;i++) delay_us(1000);
 }
-
-			 
+u32 cnt_now;
+// SysTick 计时函数
+float Systick_GetDeltaT(uint32_t *cnt_last)
+{
+    // 读取当前 SysTick 计数器值（24位递减计数器）
+    cnt_now = SysTick->VAL & 0xFFFFFF;
+    
+    // 计算经过的时钟周期数（处理递减计数特性）
+    uint32_t delta_ticks;
+    
+    if (cnt_now <= *cnt_last) {
+        // 未发生重载：上次值 - 当前值
+        delta_ticks = *cnt_last - cnt_now;
+    } else {
+        // 发生重载：(上次值) + (重载值 - 当前值)
+        delta_ticks = (*cnt_last) + (systick_reload_value - cnt_now);
+    }
+    
+    // 计算时间差（秒）
+    float dt = (float)delta_ticks / (float)SystemCoreClock;
+    
+    // 更新上一次计数值
+    *cnt_last = cnt_now;
+    
+    return dt;
+}		 
 
 
 

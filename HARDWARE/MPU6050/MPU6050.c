@@ -1,6 +1,11 @@
 #include "MPU6050.h"
 #include "I2C.h"
 #include "usart.h"
+#include "delay.h"
+#include "inv_mpu.h"
+#include "inv_mpu_dmp_motion_driver.h"
+#include "dmpKey.h"
+#include "dmpmap.h"
 #define PRINT_ACCEL     (0x01)
 #define PRINT_GYRO      (0x02)
 #define PRINT_QUAT      (0x04)
@@ -13,6 +18,7 @@
 #define FLASH_MEM_START ((void*)0x1800)
 #define q30  1073741824.0f
 short gyro[3], accel[3], sensors;
+float Roll,Pitch,Yaw;
 //零点漂移计数
 int Deviation_Count;
 // Gyro static error, raw data
@@ -20,91 +26,249 @@ int Deviation_Count;
 short Deviation_gyro[3],Original_gyro[3];  
 short Deviation_accel[3],Original_accel[3]; 
 float q0=1.0f,q1=0.0f,q2=0.0f,q3=0.0f;
-//static signed char gyro_orientation[9] = {-1, 0, 0,
-//                                           0,-1, 0,
-//                                           0, 0, 1};
 
-//static  unsigned short inv_row_2_scale(const signed char *row)
-//{
-//    unsigned short b;
 
-//    if (row[0] > 0)
-//        b = 0;
-//    else if (row[0] < 0)
-//        b = 4;
-//    else if (row[1] > 0)
-//        b = 1;
-//    else if (row[1] < 0)
-//        b = 5;
-//    else if (row[2] > 0)
-//        b = 2;
-//    else if (row[2] < 0)
-//        b = 6;
-//    else
-//        b = 7;      // error
-//    return b;
-//}
+//////user start
+#define GYRO_SCALE 0.000266312f  // 500 * π / (32768 * 180)
+#define ACCEL_SCALE 0.0005981445f  // (2 * 9.8) / 32768
+INS_t INS;
+KalmanFilter_t filter;
+// DWT计数
+float INS_Systick_Dt;
+u32 last_systick_cnt;
+//
 
+#define Kp      10.0f                        // proportional gain governs rate of convergence to accelerometer/magnetometer
+#define Ki      0.008f                       // integral gain governs rate of convergence of gyroscope biases
+#define halfT   0.001f                   // half the sample period,sapmple freq=500Hz
+//Mahony算法通过融合陀螺仪和加速度计数据
+//float q0 = 1, q1 = 0, q2 = 0, q3 = 0;    // quaternion elements representing the estimated orientation
+float exInt = 0, eyInt = 0, ezInt = 0;    // scaled integral error
+ 
+float yaw = 0;
+float pitch = 0;
+float roll = 0;
+
+uint8_t Mpu6050_Filter_Init(void);
+void Mpu6050_Calculate_PeriodElapsedCallback();
+uint8_t Mpu6050_Filter_Init(void)
+{
+	//EKF初始化
+    IMU_QuaternionEKF_Init(10, 0.001, 10000000, 1, 0 ,&QEKF_INS);
+	INS.AccelLPF = 0.0085;
+}
+void IMU_Update(float gx, float gy, float gz, float ax, float ay, float az);
+void Mpu6050_Calculate_PeriodElapsedCallback()
+{
+
+	INS_Systick_Dt = 0.002;//Systick_GetDeltaT(&last_systick_cnt);
+
+    INS.Accel[0] = (float)accel[0] * ACCEL_SCALE;
+	INS.Accel[1] = (float)accel[1] * ACCEL_SCALE;
+	INS.Accel[2] = (float)accel[2] * ACCEL_SCALE;
+    INS.Gyro[0] = (float)(gyro[0]-Deviation_gyro[0]) * GYRO_SCALE;
+    INS.Gyro[1] = (float)(gyro[1]-Deviation_gyro[1]) * GYRO_SCALE;
+    INS.Gyro[2] = (float)(gyro[2]-Deviation_gyro[2]) * GYRO_SCALE;
+
+    // 核心函数,EKF更新四元数
+    //IMU_QuaternionEKF_Update(INS.Gyro[0], INS.Gyro[1], INS.Gyro[2], INS.Accel[0], INS.Accel[1], INS.Accel[2], INS_Systick_Dt ,&QEKF_INS);
+	//INS获取欧拉角
+	// INS.Yaw = QEKF_INS.Yaw;
+	// INS.Pitch = QEKF_INS.Pitch;
+	// INS.Roll = QEKF_INS.Roll;
+	//
+	IMU_Update(INS.Gyro[0],INS.Gyro[1],INS.Gyro[2],INS.Accel[0],INS.Accel[1],INS.Accel[2]);
+	INS.Yaw = yaw;
+	INS.Pitch = pitch;
+	INS.Roll = roll;
+}
+void IMU_Update(float gx, float gy, float gz, float ax, float ay, float az)
+{
+    float norm;
+    float vx, vy, vz;
+    float ex, ey, ez;
+    float temp0, temp1, temp2, temp3; 
+ 
+    float q0q0 = q0 * q0;
+    float q0q1 = q0 * q1;
+    float q0q2 = q0 * q2;
+    //float q0q3 = q0 * q3;
+    float q1q1 = q1 * q1;
+    //float q1q2 = q1 * q2;
+    float q1q3 = q1 * q3;
+    float q2q2 = q2 * q2;
+    float q2q3 = q2 * q3;
+    float q3q3 = q3 * q3;
+ 
+    if (ax * ay * az == 0)
+    {
+        return;
+    }
+ 
+    norm = sqrt(ax * ax + ay * ay + az * az);       //
+    ax = ax / norm;
+    ay = ay / norm;
+    az = az / norm;
+ 
+    // estimated direction of gravity and flux (v and w)
+    vx = 2 * (q1q3 - q0q2);
+    vy = 2 * (q0q1 + q2q3);
+    vz = q0q0 - q1q1 - q2q2 + q3q3 ;
+ 
+    // error is sum of cross product between reference direction of fields and direction measured by sensors
+    ex = (ay * vz - az * vy) ;
+    ey = (az * vx - ax * vz) ;
+    ez = (ax * vy - ay * vx) ;
+ 
+    exInt = exInt + ex * Ki;
+    eyInt = eyInt + ey * Ki;
+    ezInt = ezInt + ez * Ki;
+ 
+    // adjusted gyroscope measurements
+    gx = gx + Kp * ex + exInt;
+    gy = gy + Kp * ey + eyInt;
+    gz = gz + Kp * ez + ezInt;
+ 
+    // integrate quaternion rate and normalise
+    temp0 = q0;
+    temp1 = q1;
+    temp2 = q2;
+    temp3 = q3;
+    q0 += (-temp1 * gx - temp2 * gy - temp3 * gz) * halfT;
+    q1 += (temp0 * gx + temp2 * gz - temp3 * gy) * halfT;
+    q2 += (temp0 * gy - temp1 * gz + temp3 * gx) * halfT;
+    q3 += (temp0 * gz + temp1 * gy - temp2 * gx) * halfT;
+ 
+    // normalise quaternion
+    norm = sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+    q0 = q0 / norm;
+    q1 = q1 / norm;
+    q2 = q2 / norm;
+    q3 = q3 / norm;
+ 
+    yaw = atan2(2 * q1 * q2 + 2 * q0 * q3, -2 * q2 * q2 - 2 * q3 * q3 + 1) * 57.3; // unit:degree
+    pitch = asin(-2 * q1 * q3 + 2 * q0 * q2) * 57.3; // unit:degree
+    roll = atan2(2 * q2 * q3 + 2 * q0 * q1, -2 * q1 * q1 - 2 * q2 * q2 + 1) * 57.3; // unit:degree
+}
+///////user end
+
+static signed char gyro_orientation[9] = {-1, 0, 0,
+                                           0,-1, 0,
+                                           0, 0, 1};
+
+static  unsigned short inv_row_2_scale(const signed char *row)
+{
+    unsigned short b;
+
+    if (row[0] > 0)
+        b = 0;
+    else if (row[0] < 0)
+        b = 4;
+    else if (row[1] > 0)
+        b = 1;
+    else if (row[1] < 0)
+        b = 5;
+    else if (row[2] > 0)
+        b = 2;
+    else if (row[2] < 0)
+        b = 6;
+    else
+        b = 7;      // error
+    return b;
+}
+
+
+uint8_t get_calibration_status()
+{
+    static uint8_t tim_cnt = 0;
+    static float last_yaw = 0;
+    int8_t switch_mode = 0;
+
+    tim_cnt++;
+    if (tim_cnt > 100) // 0.2s
+    {
+        if (fabs(Yaw - last_yaw) < 0.05f)
+        {
+            switch_mode = 1;
+        }
+        last_yaw = Yaw;
+        tim_cnt = 0;
+    }
+
+    return switch_mode;
+}
+
+uint8_t calibrate_flag = 0;
 void MPU6050_task(void *pvParameters)
 {
     u32 lastWakeTime = getSysTickCnt();
-    while(1)
-    {	
-			//This task runs at 100Hz
-			//此任务以100Hz的频率运行
-			vTaskDelayUntil(&lastWakeTime, F2T(RATE_100_HZ));	
-		
-			//Read the gyroscope zero before starting
-      //开机前，读取陀螺仪零点			
-		  if(Deviation_Count<CONTROL_DELAY)
-		  {	 
-		  	Deviation_Count++;
-			  memcpy(Deviation_gyro,gyro,sizeof(gyro));		
-				memcpy(Deviation_accel,accel,sizeof(accel));	
-		  }		
+    while (1)
+    {
+        // This task runs at 500Hz
+        // 此任务以100Hz的频率运行
+        vTaskDelayUntil(&lastWakeTime, F2T(RATE_500_HZ));
 
-     MPU_Get_Gyroscope(); //得到陀螺仪数据
-     MPU_Get_Accelscope(); //获得加速度计值(原始值)
+        Read_DMP();
+
+        // Read the gyroscope zero before starting
+        //开机前，延迟6s读取陀螺仪零点
+		Deviation_Count++;
+        if (Deviation_Count > 3000 && calibrate_flag == 0)
+        {
+        
+            calibrate_flag = get_calibration_status();
+        }
+
+        //     MPU_Get_Gyroscope(); //得到陀螺仪数据
+        //     MPU_Get_Accelscope(); //获得加速度计值(原始值)
+        //	 Mpu6050_Calculate_PeriodElapsedCallback();
     }
-}  
+}
 
-//static  unsigned short inv_orientation_matrix_to_scalar(
-//    const signed char *mtx)
+//void MPU6050_task(void)
 //{
-//    unsigned short scalar;
-//    scalar = inv_row_2_scale(mtx);
-//    scalar |= inv_row_2_scale(mtx + 3) << 3;
-//    scalar |= inv_row_2_scale(mtx + 6) << 6;
+//     MPU_Get_Gyroscope(); //得到陀螺仪数据
+//     MPU_Get_Accelscope(); //获得加速度计值(原始值)
+//    
+//}  
+
+static  unsigned short inv_orientation_matrix_to_scalar(
+    const signed char *mtx)
+{
+    unsigned short scalar;
+    scalar = inv_row_2_scale(mtx);
+    scalar |= inv_row_2_scale(mtx + 3) << 3;
+    scalar |= inv_row_2_scale(mtx + 6) << 6;
 
 
-//    return scalar;
-//}
+    return scalar;
+}
 
-//static void run_self_test(void)
-//{
-//    int result;
-//    long gyro[3], accel[3];
+static void run_self_test(void)
+{
+    int result;
+    long gyro[3], accel[3];
 
-//    result = mpu_run_self_test(gyro, accel);
-//    if (result == 0x7) {
-//        /* Test passed. We can trust the gyro data here, so let's push it down
-//         * to the DMP.
-//         */
-//        float sens;
-//        unsigned short accel_sens;
-//        mpu_get_gyro_sens(&sens);
-//        gyro[0] = (long)(gyro[0] * sens);
-//        gyro[1] = (long)(gyro[1] * sens);
-//        gyro[2] = (long)(gyro[2] * sens);
-//        dmp_set_gyro_bias(gyro);
-//        mpu_get_accel_sens(&accel_sens);
-//        accel[0] *= accel_sens;
-//        accel[1] *= accel_sens;
-//        accel[2] *= accel_sens;
-//        dmp_set_accel_bias(accel);
-//		//printf("setting bias succesfully ......\r\n");
-//    }
-//}
+    result = mpu_run_self_test(gyro, accel);
+    if (result == 0x7) {
+        /* Test passed. We can trust the gyro data here, so let's push it down
+         * to the DMP.
+         */
+        float sens;
+        unsigned short accel_sens;
+        mpu_get_gyro_sens(&sens);
+        gyro[0] = (long)(gyro[0] * sens);
+        gyro[1] = (long)(gyro[1] * sens);
+        gyro[2] = (long)(gyro[2] * sens);
+        dmp_set_gyro_bias(gyro);
+        mpu_get_accel_sens(&accel_sens);
+        accel[0] *= accel_sens;
+        accel[1] *= accel_sens;
+        accel[2] *= accel_sens;
+        dmp_set_accel_bias(accel);
+		//printf("setting bias succesfully ......\r\n");
+    }
+}
 
 
 
@@ -198,7 +362,7 @@ Output  : none
  * 7       | Stops the clock and keeps the timing generator in reset
 **************************************************************************/
 void MPU6050_setClockSource(uint8_t source){
-    I2C_WriteBits(devAddr, MPU6050_RA_PWR_MGMT_1, MPU6050_PWR1_CLKSEL_BIT, MPU6050_PWR1_CLKSEL_LENGTH, source);
+    IICwriteBits(devAddr, MPU6050_RA_PWR_MGMT_1, MPU6050_PWR1_CLKSEL_BIT, MPU6050_PWR1_CLKSEL_LENGTH, source);
 
 }
 
@@ -211,7 +375,7 @@ void MPU6050_setClockSource(uint8_t source){
  * @see MPU6050_GCONFIG_FS_SEL_LENGTH
  */
 void MPU6050_setFullScaleGyroRange(uint8_t range) {
-    I2C_WriteBits(devAddr, MPU6050_RA_GYRO_CONFIG, MPU6050_GCONFIG_FS_SEL_BIT, MPU6050_GCONFIG_FS_SEL_LENGTH, range);
+    IICwriteBits(devAddr, MPU6050_RA_GYRO_CONFIG, MPU6050_GCONFIG_FS_SEL_BIT, MPU6050_GCONFIG_FS_SEL_LENGTH, range);
 }
 
 /**************************************************************************
@@ -227,7 +391,7 @@ Output  : none
 //#define MPU6050_ACCEL_FS_8          0x02			//===最大量程+-8G
 //#define MPU6050_ACCEL_FS_16         0x03			//===最大量程+-16G
 void MPU6050_setFullScaleAccelRange(uint8_t range) {
-    I2C_WriteBits(devAddr, MPU6050_RA_ACCEL_CONFIG, MPU6050_ACONFIG_AFS_SEL_BIT, MPU6050_ACONFIG_AFS_SEL_LENGTH, range);
+    IICwriteBits(devAddr, MPU6050_RA_ACCEL_CONFIG, MPU6050_ACONFIG_AFS_SEL_BIT, MPU6050_ACONFIG_AFS_SEL_LENGTH, range);
 }
 
 /**************************************************************************
@@ -239,7 +403,7 @@ Output  : none
 返回  值：无
 **************************************************************************/
 void MPU6050_setSleepEnabled(uint8_t enabled) {
-    I2C_WriteOneBit(devAddr, MPU6050_RA_PWR_MGMT_1, MPU6050_PWR1_SLEEP_BIT, enabled);
+    IICwriteBit(devAddr, MPU6050_RA_PWR_MGMT_1, MPU6050_PWR1_SLEEP_BIT, enabled);
 }
 
 /**************************************************************************
@@ -282,7 +446,7 @@ Output  : none
 返回  值：无
 **************************************************************************/
 void MPU6050_setI2CMasterModeEnabled(uint8_t enabled) {
-    I2C_WriteOneBit(devAddr, MPU6050_RA_USER_CTRL, MPU6050_USERCTRL_I2C_MST_EN_BIT, enabled);
+    IICwriteBit(devAddr, MPU6050_RA_USER_CTRL, MPU6050_USERCTRL_I2C_MST_EN_BIT, enabled);
 }
 
 /**************************************************************************
@@ -294,7 +458,7 @@ Output  : none
 返回  值：无
 **************************************************************************/
 void MPU6050_setI2CBypassEnabled(uint8_t enabled) {
-    I2C_WriteOneBit(devAddr, MPU6050_RA_INT_PIN_CFG, MPU6050_INTCFG_I2C_BYPASS_EN_BIT, enabled);
+    IICwriteBit(devAddr, MPU6050_RA_INT_PIN_CFG, MPU6050_INTCFG_I2C_BYPASS_EN_BIT, enabled);
 }
 
 /**************************************************************************
@@ -346,36 +510,36 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
-//void DMP_Init(void)
-//{ 
-//   u8 temp[1]={0};
-//   i2cRead(0x68,0x75,1,temp);
-//	 printf("mpu_set_sensor complete ......\r\n");
-//	if(temp[0]!=0x68)NVIC_SystemReset();
-//	if(!mpu_init())
-//  {
-//	  if(!mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL))
-//	  	 printf("mpu_set_sensor complete ......\r\n");
-//	  if(!mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL))
-//	  	 printf("mpu_configure_fifo complete ......\r\n");
-//	  if(!mpu_set_sample_rate(DEFAULT_MPU_HZ))
-//	  	 printf("mpu_set_sample_rate complete ......\r\n");
-//	  if(!dmp_load_motion_driver_firmware())
-//	  	printf("dmp_load_motion_driver_firmware complete ......\r\n");
-//	  if(!dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation)))
-//	  	 printf("dmp_set_orientation complete ......\r\n");
-//	  if(!dmp_enable_feature(DMP_FEATURE_6X_LP_QUAT | DMP_FEATURE_TAP |
-//	      DMP_FEATURE_ANDROID_ORIENT | DMP_FEATURE_SEND_RAW_ACCEL | DMP_FEATURE_SEND_CAL_GYRO |
-//	      DMP_FEATURE_GYRO_CAL))
-//	  	 printf("dmp_enable_feature complete ......\r\n");
-//	  if(!dmp_set_fifo_rate(DEFAULT_MPU_HZ))
-//	  	 printf("dmp_set_fifo_rate complete ......\r\n");
-//	  run_self_test();
-//		if(!mpu_set_dmp_state(1))
-//			 printf("mpu_set_dmp_state complete ......\r\n");
-//  }
+void DMP_Init(void)
+{ 
+   u8 temp[1]={0};
+   i2cRead(0x68,0x75,1,temp);
+	 printf("mpu_set_sensor complete ......\r\n");
+	if(temp[0]!=0x68)NVIC_SystemReset();
+	if(!mpu_init())
+  {
+	  if(!mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL))
+	  	 printf("mpu_set_sensor complete ......\r\n");
+	  if(!mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL))
+	  	 printf("mpu_configure_fifo complete ......\r\n");
+	  if(!mpu_set_sample_rate(DEFAULT_MPU_HZ))
+	  	 printf("mpu_set_sample_rate complete ......\r\n");
+	  if(!dmp_load_motion_driver_firmware())
+	  	printf("dmp_load_motion_driver_firmware complete ......\r\n");
+	  if(!dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation)))
+	  	 printf("dmp_set_orientation complete ......\r\n");
+	  if(!dmp_enable_feature(DMP_FEATURE_6X_LP_QUAT | DMP_FEATURE_TAP |
+	      DMP_FEATURE_ANDROID_ORIENT | DMP_FEATURE_SEND_RAW_ACCEL | DMP_FEATURE_SEND_CAL_GYRO |
+	      DMP_FEATURE_GYRO_CAL))
+	  	 printf("dmp_enable_feature complete ......\r\n");
+	  if(!dmp_set_fifo_rate(DEFAULT_MPU_HZ))
+	  	 printf("dmp_set_fifo_rate complete ......\r\n");
+	  run_self_test();
+		if(!mpu_set_dmp_state(1))
+			 printf("mpu_set_dmp_state complete ......\r\n");
+  }
 
-//}
+}
 /**************************************************************************
 Function: Read the attitude information of DMP in mpu6050
 Input   : none
@@ -384,25 +548,25 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
-//void Read_DMP(void)
-//{	
-//	  unsigned long sensor_timestamp;
-//		unsigned char more;
-//		long quat[4];
+void Read_DMP(void)
+{	
+	  unsigned long sensor_timestamp;
+		unsigned char more;
+		long quat[4];
 
-//				dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);		//读取DMP数据
-//				if (sensors & INV_WXYZ_QUAT )
-//				{    
-//					 q0=quat[0] / q30;
-//					 q1=quat[1] / q30;
-//					 q2=quat[2] / q30;
-//					 q3=quat[3] / q30; 		//四元数
-//					 Roll = asin(-2 * q1 * q3 + 2 * q0* q2)* 57.3; 	//计算出横滚角
-//					 Pitch = atan2(2 * q2 * q3 + 2 * q0 * q1, -2 * q1 * q1 - 2 * q2* q2 + 1)* 57.3; // 计算出俯仰角
-//					 Yaw = atan2(2*(q1*q2 + q0*q3),q0*q0+q1*q1-q2*q2-q3*q3) * 57.3;	 //计算出偏航角
-//				}
+				dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);		//读取DMP数据
+				if (sensors & INV_WXYZ_QUAT )
+				{    
+					 q0=quat[0] / q30;
+					 q1=quat[1] / q30;
+					 q2=quat[2] / q30;
+					 q3=quat[3] / q30; 		//四元数
+					 Roll = asin(-2 * q1 * q3 + 2 * q0* q2)* 57.3; 	//计算出横滚角
+					 Pitch = atan2(2 * q2 * q3 + 2 * q0 * q1, -2 * q1 * q1 - 2 * q2* q2 + 1)* 57.3; // 计算出俯仰角
+					 Yaw = atan2(2*(q1*q2 + q0*q3),q0*q0+q1*q1-q2*q2-q3*q3) * 57.3;	 //计算出偏航角
+				}
 
-//}
+}
 /**************************************************************************
 Function: Read mpu6050 built-in temperature sensor data
 Input   : none
@@ -469,30 +633,30 @@ void MPU_Get_Gyroscope(void)
 		gyro[1]=(I2C_ReadOneByte(devAddr,MPU6050_RA_GYRO_YOUT_H)<<8)+I2C_ReadOneByte(devAddr,MPU6050_RA_GYRO_YOUT_L);    //读取Y轴陀螺仪
 		gyro[2]=(I2C_ReadOneByte(devAddr,MPU6050_RA_GYRO_ZOUT_H)<<8)+I2C_ReadOneByte(devAddr,MPU6050_RA_GYRO_ZOUT_L);    //读取Z轴陀螺仪
 	
-	if(Deviation_Count<CONTROL_DELAY) // 10 seconds before starting //开机前10秒
-		{//已修改为1s
+//	if(Deviation_Count<CONTROL_DELAY) // 10 seconds before starting //开机前10秒
+//		{
 
-			Led_Count=1; //LED high frequency flashing //LED高频闪烁
-			Flag_Stop=1; //The software fails to flag location 1 //软件失能标志位置1		
-		}
-	else //10 seconds after starting //开机10秒后
-		{  
-			if(Deviation_Count==CONTROL_DELAY)
-				Flag_Stop=0; //The software fails to flag location 0 //软件失能标志位置0
-			Led_Count=300; //The LED returns to normal flicker frequency //LED恢复正常闪烁频率	
-			
-			//Save the raw data to update zero by clicking the user button
-			//保存原始数据用于单击用户按键更新零点
-			Original_gyro[0] =gyro[0];  
-			Original_gyro[1] =gyro[1];  
-			Original_gyro[2]= gyro[2];			
-			
-			//Removes zero drift data
-			//去除零点漂移的数据
-			gyro[0] =Original_gyro[0]-Deviation_gyro[0];  
-			gyro[1] =Original_gyro[1]-Deviation_gyro[1];  
-			gyro[2]= Original_gyro[2]-Deviation_gyro[2];
-		}
+//			Led_Count=1; //LED high frequency flashing //LED高频闪烁
+//			Flag_Stop=1; //The software fails to flag location 1 //软件失能标志位置1		
+//		}
+//	else //10 seconds after starting //开机10秒后
+//		{  
+//			if(Deviation_Count==CONTROL_DELAY)
+//				Flag_Stop=0; //The software fails to flag location 0 //软件失能标志位置0
+//			Led_Count=300; //The LED returns to normal flicker frequency //LED恢复正常闪烁频率	
+//			
+//			//Save the raw data to update zero by clicking the user button
+//			//保存原始数据用于单击用户按键更新零点
+//			Original_gyro[0] =gyro[0];  
+//			Original_gyro[1] =gyro[1];  
+//			Original_gyro[2]= gyro[2];			
+//			
+//			//Removes zero drift data
+//			//去除零点漂移的数据
+//			gyro[0] =Original_gyro[0]-Deviation_gyro[0];  
+//			gyro[1] =Original_gyro[1]-Deviation_gyro[1];  
+//			gyro[2]= Original_gyro[2]-Deviation_gyro[2];
+//		}
 	 	
 }
 /**************************************************************************
@@ -506,25 +670,6 @@ void MPU_Get_Accelscope(void)
 		accel[0]=(I2C_ReadOneByte(devAddr,MPU6050_RA_ACCEL_XOUT_H)<<8)+I2C_ReadOneByte(devAddr,MPU6050_RA_ACCEL_XOUT_L); //读取X轴加速度计
 		accel[1]=(I2C_ReadOneByte(devAddr,MPU6050_RA_ACCEL_YOUT_H)<<8)+I2C_ReadOneByte(devAddr,MPU6050_RA_ACCEL_YOUT_L); //读取X轴加速度计
 		accel[2]=(I2C_ReadOneByte(devAddr,MPU6050_RA_ACCEL_ZOUT_H)<<8)+I2C_ReadOneByte(devAddr,MPU6050_RA_ACCEL_ZOUT_L); //读取Z轴加速度计
-	
-		if(Deviation_Count<CONTROL_DELAY) // 10 seconds before starting //开机前10秒
-		{
-	
-		}
-		else //10 seconds after starting //开机10秒后
-		{  		
-			//Save the raw data to update zero by clicking the user button
-			//保存原始数据用于单击用户按键更新零点
-			Original_accel[0] =accel[0];  
-			Original_accel[1] =accel[1];  
-			Original_accel[2]= accel[2];			
-			
-			//Removes zero drift data
-			//去除零点漂移的数据
-			accel[0] =Original_accel[0]-Deviation_accel[0];  
-			accel[1] =Original_accel[1]-Deviation_accel[1];  
-			accel[2]= Original_accel[2]-Deviation_accel[2]+16384;
-		}
 }
 
 //------------------End of File----------------------------

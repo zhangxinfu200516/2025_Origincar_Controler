@@ -96,5 +96,7 @@
 ..\obj\balance.o: ..\HARDWARE\MPU6050\I2C.h
 ..\obj\balance.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 ..\obj\balance.o: ..\HARDWARE\MPU6050\MPU6050.h
+..\obj\balance.o: ..\BALANCE\kalman_filter.h
 ..\obj\balance.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+..\obj\balance.o: ..\BALANCE\QuaternionEKF.h
 ..\obj\balance.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h

@@ -41,6 +41,8 @@
 "..\obj\quaternionekf.o"
 "..\obj\mpu6050.o"
 "..\obj\i2c.o"
+"..\obj\inv_mpu.o"
+"..\obj\inv_mpu_dmp_motion_driver.o"
 "..\obj\basicmathfunctions_1.o"
 "..\obj\basicmathfunctionsf16.o"
 "..\obj\bayesfunctions.o"

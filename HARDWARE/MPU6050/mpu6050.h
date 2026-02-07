@@ -1,7 +1,36 @@
 #ifndef __MPU6050_H
 #define __MPU6050_H
-
+#include "kalman_filter.h"
+#include "QuaternionEKF.h"
 #include "sys.h"
+typedef struct
+{
+    float q[4]; // 四元数估计值
+
+    float Gyro[3];  // 角速度
+    float Accel[3]; // 加速度
+    float MotionAccel_b[3]; // 机体坐标加速度
+    float MotionAccel_n[3]; // 绝对系加速度
+
+    float AccelLPF; // 加速度低通滤波系数
+
+    // 加速度在绝对系的向量表示
+    float xn[3];
+    float yn[3];
+    float zn[3];
+
+    float atanxz;
+    float atanyz;
+
+    // 位姿
+    float Roll;
+    float Pitch;
+    float Yaw;
+    float YawTotalAngle;
+} INS_t;
+extern uint8_t calibrate_flag;
+extern float Yaw,Pitch,Roll;
+
 #define devAddr  0xD0
 
 #define MPU6050_ADDRESS_AD0_LOW     0x68 // address pin low (GND), default for InvenSense evaluation board
@@ -363,7 +392,7 @@ extern short Deviation_gyro[3],Original_gyro[3];
 extern  short Deviation_accel[3],Original_accel[3]; 
 extern int16_t Gx_offset,Gy_offset,Gz_offset;
 extern float Acc1G_Values;
-extern float Roll,Pitch,Yaw; 
+// extern float Roll,Pitch,Yaw; 
 //供外部调用的API
 u8 MPU6050_initialize(void); //初始化
 uint8_t MPU6050_testConnection(void); //检测MPU6050是否存在
@@ -381,5 +410,7 @@ unsigned char MPU6050_Set_LPF(u16 lpf);
 unsigned char MPU6050_Set_Rate(u16 rate);
 void MPU_Get_Gyroscope(void);
 void MPU_Get_Accelscope(void);
-
+uint8_t Mpu6050_Filter_Init(void);
+extern KalmanFilter_t filter;
+extern INS_t INS;
 #endif

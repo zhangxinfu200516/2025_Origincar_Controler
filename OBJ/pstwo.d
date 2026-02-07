@@ -81,6 +81,10 @@
 ..\obj\pstwo.o: ..\FreeRTOS\include\semphr.h
 ..\obj\pstwo.o: ..\BALANCE\balance.h
 ..\obj\pstwo.o: ..\BALANCE\system.h
+..\obj\pstwo.o: ..\HARDWARE\MPU6050\mpu6050.h
+..\obj\pstwo.o: ..\BALANCE\kalman_filter.h
+..\obj\pstwo.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+..\obj\pstwo.o: ..\BALANCE\QuaternionEKF.h
 ..\obj\pstwo.o: ..\HARDWARE\led.h
 ..\obj\pstwo.o: ..\HARDWARE\oled.h
 ..\obj\pstwo.o: ..\HARDWARE\usartx.h
@@ -95,6 +99,4 @@
 ..\obj\pstwo.o: ..\BALANCE\robot_select_init.h
 ..\obj\pstwo.o: ..\HARDWARE\MPU6050\I2C.h
 ..\obj\pstwo.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-..\obj\pstwo.o: ..\HARDWARE\MPU6050\MPU6050.h
-..\obj\pstwo.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 ..\obj\pstwo.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h
